@@ -7,6 +7,8 @@ This is based on sdl2 library and go binding of the same
 currently validated this for Mac OS so please ensure that the sdl library is installed before running thsi game
 ```
 brew install sdl2
+brew install sdl2_mixer
+brew install sdl2_image
 ```
 should get you started assuming you are using brew as package manager for Mac OS
 
