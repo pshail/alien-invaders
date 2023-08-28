@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/veandco/go-sdl2/img"
+	"github.com/veandco/go-sdl2/mix"
 	"github.com/veandco/go-sdl2/sdl"
 	"log"
 	"math/rand"
@@ -30,6 +32,32 @@ const (
 	Brown
 	Blue
 )
+
+func loadMedia(renderer *sdl.Renderer) (*sdl.Texture, *mix.Music, error) {
+	image, err := img.Load("level1.png")
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not load background image: %v", err)
+	}
+	defer image.Free()
+
+	texture, err := renderer.CreateTextureFromSurface(image)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create texture: %v", err)
+	}
+	if err := mix.Init(mix.INIT_MP3); err != nil {
+		log.Fatalf("Initializing SDL_mixer failed: %v", err)
+	}
+	if err := mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 2, 4096); err != nil {
+		log.Fatalf("Failed to open audio: %v", err)
+	}
+
+	music, err := mix.LoadMUS("level1.mp3")
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not load background music: %v", err)
+	}
+
+	return texture, music, nil
+}
 
 func colorToSDLColor(color Color) sdl.Color {
 	switch color {
@@ -150,11 +178,20 @@ func main() {
 		log.Fatalf("Could not create renderer: %s", err)
 	}
 	defer renderer.Destroy()
+	texture, music, err := loadMedia(renderer)
+	if err != nil {
+		log.Fatalf("Could not load media: %s", err)
+	}
+	defer texture.Destroy()
+	defer music.Free()
 
+	music.Play(-1) // loop indefinitely
 	initGame()
 	go moveAliens() // Start moving aliens in a separate goroutine
 
 	for running {
+		renderer.Copy(texture, nil, nil) // Copy the background image to fill the entire window
+
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch e := event.(type) {
 			case *sdl.QuitEvent:
@@ -227,8 +264,9 @@ func main() {
 				break
 			}
 		}
-		renderer.SetDrawColor(0, 0, 0, 255)
-		renderer.Clear()
+
+		//renderer.SetDrawColor(0, 0, 0, 255)
+		//renderer.Clear()
 
 		renderer.SetDrawColor(255, 255, 255, 255)
 		renderer.FillRect(player)
