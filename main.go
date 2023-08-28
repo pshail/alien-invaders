@@ -187,6 +187,14 @@ func main() {
 			}
 		}
 
+		// Check if player collides with any alien
+		for _, alien := range aliens {
+			if checkCollision(player, alien.Rect) {
+				fmt.Println("Game Over! You were touched by an alien!")
+				running = false
+				break
+			}
+		}
 		renderer.SetDrawColor(0, 0, 0, 255)
 		renderer.Clear()
 
