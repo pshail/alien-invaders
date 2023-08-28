@@ -2,13 +2,17 @@ package main
 
 import (
 	"fmt"
-	"github.com/veandco/go-sdl2/img"
+	"github.com/anthonynsimon/bild/blur"
 	"github.com/veandco/go-sdl2/mix"
 	"github.com/veandco/go-sdl2/sdl"
+	"image"
+	_ "image/png"
 	"log"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -33,16 +37,49 @@ const (
 	Blue
 )
 
-func loadMedia(renderer *sdl.Renderer) (*sdl.Texture, *mix.Music, error) {
-	image, err := img.Load("level1.png")
+func loadAndBlurTexture(renderer *sdl.Renderer, path string) (*sdl.Texture, error) {
+	imgFile, err := os.Open(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not load background image: %v", err)
+		return nil, fmt.Errorf("could not load image: %v", err)
 	}
-	defer image.Free()
+	defer imgFile.Close()
 
-	texture, err := renderer.CreateTextureFromSurface(image)
+	img, _, err := image.Decode(imgFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not create texture: %v", err)
+		return nil, fmt.Errorf("could not decode image: %v", err)
+	}
+
+	// Apply Gaussian blur using bild package
+	blurredImg := blur.Gaussian(img, 3.0)
+
+	// Convert image.Image to SDL2 surface
+	surface, err := sdl.CreateRGBSurfaceFrom(unsafe.Pointer(&blurredImg.Pix[0]),
+		int32(blurredImg.Rect.Dx()),
+		int32(blurredImg.Rect.Dy()),
+		32,
+		blurredImg.Stride,
+		0x000000FF,
+		0x0000FF00,
+		0x00FF0000,
+		0xFF000000,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create surface: %v", err)
+	}
+	defer surface.Free()
+
+	texture, err := renderer.CreateTextureFromSurface(surface)
+	if err != nil {
+		return nil, fmt.Errorf("could not create texture: %v", err)
+	}
+
+	return texture, nil
+}
+func loadMedia(renderer *sdl.Renderer) (*sdl.Texture, *mix.Music, error) {
+	texture, err := loadAndBlurTexture(renderer, "level1.png")
+	if err != nil {
+		log.Fatal("Filed to load/blur image: %v", err)
 	}
 	if err := mix.Init(mix.INIT_MP3); err != nil {
 		log.Fatalf("Initializing SDL_mixer failed: %v", err)
@@ -265,12 +302,10 @@ func main() {
 			}
 		}
 
-		//renderer.SetDrawColor(0, 0, 0, 255)
-		//renderer.Clear()
-
-		renderer.SetDrawColor(255, 255, 255, 255)
+		renderer.SetDrawColor(255, 255, 255, 255) // White color of player
 		renderer.FillRect(player)
 
+		renderer.SetDrawColor(0, 255, 0, 255) // Green color of laser
 		for _, laser := range lasers {
 			renderer.FillRect(laser.Rect)
 		}
