@@ -29,8 +29,15 @@ type Laser struct {
 }
 
 type Alien struct {
-	Rect *sdl.Rect
-	Dir  Direction
+	Rect  *sdl.Rect
+	Dir   Direction
+	Color sdl.Color
+}
+
+var alienColors = []sdl.Color{
+	{R: 255, G: 0, B: 0, A: 255},   // Red
+	{R: 165, G: 42, B: 42, A: 255}, // Brown
+	{R: 0, G: 0, B: 255, A: 255},   // Blue
 }
 
 var (
@@ -61,19 +68,34 @@ func initGame() {
 	rand.Seed(time.Now().UnixNano())
 	player = &sdl.Rect{X: 390, Y: 550, W: 20, H: 20}
 	playerDir = Up
-	aliens = append(aliens, Alien{Rect: &sdl.Rect{X: 100, Y: 100, W: 20, H: 20}, Dir: Up})
+	addRandomAlien()
 	running = true
 }
 
 func addRandomAlien() {
 	x := int32(rand.Intn(winWidth - 20))
 	y := int32(rand.Intn(winHeight - 20))
-	newAlien := Alien{Rect: &sdl.Rect{X: x, Y: y, W: 20, H: 20}, Dir: Up}
+	// Randomly select one of the predefined colors
+	colorIndex := rand.Intn(len(alienColors))
+	randomColor := alienColors[colorIndex]
+	newAlien := Alien{Rect: &sdl.Rect{X: x, Y: y, W: 20, H: 20}, Dir: Up, Color: randomColor}
 	aliens = append(aliens, newAlien)
 }
 
 func checkCollision(a, b *sdl.Rect) bool {
 	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
+}
+
+func getStepSize(col sdl.Color) int32 {
+	switch col.R {
+	case 255:
+		return 32
+	case 105:
+		return 15
+	case 0:
+		return 25
+	}
+	return 20
 }
 
 func moveAliens(aliens []Alien, ch chan bool) {
@@ -85,7 +107,7 @@ func moveAliens(aliens []Alien, ch chan bool) {
 			for _, alien := range aliens {
 				// Randomly change direction
 				alien.Dir = Direction(rand.Intn(4))
-				stepSize := int32(rand.Intn(20))
+				stepSize := getStepSize(alien.Color)
 				switch alien.Dir {
 				case Up:
 					if alien.Rect.Y > 0 {
@@ -211,8 +233,8 @@ func main() {
 		}
 
 		// Draw aliens
-		renderer.SetDrawColor(255, 0, 0, 255)
 		for _, alien := range aliens {
+			renderer.SetDrawColor(alien.Color.R, alien.Color.G, alien.Color.B, alien.Color.A)
 			renderer.FillRect(alien.Rect)
 		}
 
