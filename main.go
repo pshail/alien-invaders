@@ -158,6 +158,14 @@ func addRandomAlien() {
 	aliens = append(aliens, newAlien)
 }
 
+func createAliens(ticker *time.Ticker) {
+	for range ticker.C {
+		// Generate 3 aliens at a time as an example
+		for i := 0; i < 3; i++ {
+			addRandomAlien()
+		}
+	}
+}
 func checkCollision(a, b *sdl.Rect) bool {
 	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
 }
@@ -224,6 +232,9 @@ func main() {
 
 	music.Play(-1) // loop indefinitely
 	initGame()
+	// Create aliens every 3 seconds
+	ticker := time.NewTicker(3 * time.Second)
+	go createAliens(ticker)
 	go moveAliens() // Start moving aliens in a separate goroutine
 
 	for running {
@@ -287,7 +298,7 @@ func main() {
 			for j, alien := range aliens {
 				if checkCollision(laser.Rect, alien.Rect) {
 					aliens = append(aliens[:j], aliens[j+1:]...)
-					addRandomAlien()
+					//addRandomAlien()
 					break
 				}
 			}
