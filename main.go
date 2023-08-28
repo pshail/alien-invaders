@@ -5,6 +5,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -16,37 +17,29 @@ const (
 type Direction int
 
 const (
-	shotCooldown           = 200 * time.Millisecond
-	Up           Direction = iota
+	Up Direction = iota
 	Down
 	Left
 	Right
 )
+
+type Alien struct {
+	Rect  *sdl.Rect
+	Color sdl.Color
+}
 
 type Laser struct {
 	Rect *sdl.Rect
 	Dir  Direction
 }
 
-type Alien struct {
-	Rect  *sdl.Rect
-	Dir   Direction
-	Color sdl.Color
-}
-
-var alienColors = []sdl.Color{
-	{R: 255, G: 0, B: 0, A: 255},   // Red
-	{R: 165, G: 42, B: 42, A: 255}, // Brown
-	{R: 0, G: 0, B: 255, A: 255},   // Blue
-}
-
 var (
-	lastShot  time.Time
 	player    *sdl.Rect
 	playerDir Direction
 	aliens    []Alien
 	lasers    []Laser
 	running   bool
+	alienLock sync.Mutex
 	keys      = map[sdl.Keycode]bool{}
 )
 
@@ -55,8 +48,7 @@ func initSDL() *sdl.Window {
 		log.Fatalf("Could not initialize SDL: %s", err)
 	}
 
-	window, err := sdl.CreateWindow("Alien Invader Z", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
-		winWidth, winHeight, sdl.WINDOW_SHOWN)
+	window, err := sdl.CreateWindow("Alien Invader Z", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, winWidth, winHeight, sdl.WINDOW_SHOWN)
 	if err != nil {
 		log.Fatalf("Could not create window: %s", err)
 	}
@@ -75,10 +67,12 @@ func initGame() {
 func addRandomAlien() {
 	x := int32(rand.Intn(winWidth - 20))
 	y := int32(rand.Intn(winHeight - 20))
-	// Randomly select one of the predefined colors
-	colorIndex := rand.Intn(len(alienColors))
-	randomColor := alienColors[colorIndex]
-	newAlien := Alien{Rect: &sdl.Rect{X: x, Y: y, W: 20, H: 20}, Dir: Up, Color: randomColor}
+	colors := []sdl.Color{
+		{R: 255, G: 0, B: 0, A: 255},   // Red
+		{R: 165, G: 42, B: 42, A: 255}, // Brown
+		{R: 0, G: 0, B: 255, A: 255},   // Blue
+	}
+	newAlien := Alien{Rect: &sdl.Rect{X: x, Y: y, W: 20, H: 20}, Color: colors[rand.Intn(len(colors))]}
 	aliens = append(aliens, newAlien)
 }
 
@@ -86,49 +80,31 @@ func checkCollision(a, b *sdl.Rect) bool {
 	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
 }
 
-func getStepSize(col sdl.Color) int32 {
-	switch col.R {
-	case 255:
-		return 32
-	case 105:
-		return 15
-	case 0:
-		return 25
-	}
-	return 20
-}
-
-func moveAliens(aliens []Alien, ch chan bool) {
-	for {
-		select {
-		case <-ch:
-			return
-		default:
-			for _, alien := range aliens {
-				// Randomly change direction
-				alien.Dir = Direction(rand.Intn(4))
-				stepSize := getStepSize(alien.Color)
-				switch alien.Dir {
-				case Up:
-					if alien.Rect.Y > 0 {
-						alien.Rect.Y -= stepSize
-					}
-				case Down:
-					if alien.Rect.Y < winHeight-20 {
-						alien.Rect.Y += stepSize
-					}
-				case Left:
-					if alien.Rect.X > 0 {
-						alien.Rect.X -= stepSize
-					}
-				case Right:
-					if alien.Rect.X < winWidth-20 {
-						alien.Rect.X += stepSize
-					}
-				}
+func moveAliens() {
+	for running {
+		alienLock.Lock()
+		for i, alien := range aliens {
+			dx := int32(rand.Intn(5) - 2) // Random between -2 and 2
+			dy := int32(rand.Intn(5) - 2) // Random between -2 and 2
+			alien.Rect.X += dx
+			alien.Rect.Y += dy
+			// Make sure alien stays within window boundary
+			if alien.Rect.X < 0 {
+				alien.Rect.X = 0
 			}
-			time.Sleep(100 * time.Millisecond)
+			if alien.Rect.Y < 0 {
+				alien.Rect.Y = 0
+			}
+			if alien.Rect.X > winWidth-20 {
+				alien.Rect.X = winWidth - 20
+			}
+			if alien.Rect.Y > winHeight-20 {
+				alien.Rect.Y = winHeight - 20
+			}
+			aliens[i] = alien
 		}
+		alienLock.Unlock()
+		time.Sleep(time.Millisecond * 50)
 	}
 }
 
@@ -144,12 +120,7 @@ func main() {
 	defer renderer.Destroy()
 
 	initGame()
-
-	// Create a channel to stop the alien movementt goroutine when the game stops running
-	ch := make(chan bool)
-
-	// Start the alien movement goroutine
-	go moveAliens(aliens, ch)
+	go moveAliens() // Start moving aliens in a separate goroutine
 
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
@@ -157,8 +128,8 @@ func main() {
 			case *sdl.QuitEvent:
 				running = false
 			case *sdl.KeyboardEvent:
-				isKeyDown := e.Type == sdl.KEYDOWN
-				keys[e.Keysym.Sym] = isKeyDown
+				// Handle key events here
+				keys[e.Keysym.Sym] = e.Type == sdl.KEYDOWN
 			}
 		}
 
@@ -178,7 +149,7 @@ func main() {
 			player.Y += 5
 			playerDir = Down
 		}
-		if keys[sdl.K_SPACE] && time.Since(lastShot) >= shotCooldown {
+		if keys[sdl.K_SPACE] {
 			laser := Laser{}
 			switch playerDir {
 			case Up:
@@ -192,27 +163,24 @@ func main() {
 			}
 			laser.Dir = playerDir
 			lasers = append(lasers, laser)
-			lastShot = time.Now()
 		}
-		// Updated laser movement logic
-		for i := 0; i < len(lasers); i++ {
-			laser := &lasers[i]
+
+		for i, laser := range lasers {
 			switch laser.Dir {
 			case Up:
-				lasers[i].Rect.Y -= 5
+				laser.Rect.Y -= 5
 			case Down:
-				lasers[i].Rect.Y += 5
+				laser.Rect.Y += 5
 			case Left:
-				lasers[i].Rect.X -= 5
+				laser.Rect.X -= 5
 			case Right:
-				lasers[i].Rect.X += 5
+				laser.Rect.X += 5
 			}
+			lasers[i] = laser
 
-			// Existing alien collision logic
 			for j, alien := range aliens {
-				if checkCollision(lasers[i].Rect, alien.Rect) {
+				if checkCollision(laser.Rect, alien.Rect) {
 					aliens = append(aliens[:j], aliens[j+1:]...)
-					lasers = append(lasers[:i], lasers[i+1:]...)
 					addRandomAlien()
 					break
 				}
@@ -222,26 +190,23 @@ func main() {
 		renderer.SetDrawColor(0, 0, 0, 255)
 		renderer.Clear()
 
-		// Draw player
 		renderer.SetDrawColor(255, 255, 255, 255)
 		renderer.FillRect(player)
 
-		// Draw lasers
-		renderer.SetDrawColor(0, 255, 0, 255)
 		for _, laser := range lasers {
 			renderer.FillRect(laser.Rect)
 		}
 
-		// Draw aliens
+		alienLock.Lock()
 		for _, alien := range aliens {
 			renderer.SetDrawColor(alien.Color.R, alien.Color.G, alien.Color.B, alien.Color.A)
 			renderer.FillRect(alien.Rect)
 		}
+		alienLock.Unlock()
 
 		renderer.Present()
-		sdl.Delay(16)
+
+		time.Sleep(time.Millisecond * 16)
 	}
-	//send kill signal to alien movement goroutine
-	ch <- true
-	fmt.Println("Game Over!")
+	fmt.Println("Game Over!!!")
 }
