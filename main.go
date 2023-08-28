@@ -106,14 +106,14 @@ func moveAliens() {
 			switch alien.FillColor {
 			case Red:
 				if alien.Rect.X < player.X {
-					alien.Rect.X += 1
+					alien.Rect.X += 5
 				} else if alien.Rect.X > player.X {
-					alien.Rect.X -= 1
+					alien.Rect.X -= 5
 				}
 				if alien.Rect.Y < player.Y {
-					alien.Rect.Y += 1
+					alien.Rect.Y += 5
 				} else if alien.Rect.Y > player.Y {
-					alien.Rect.Y -= 1
+					alien.Rect.Y -= 5
 				}
 			default:
 
