@@ -23,9 +23,30 @@ const (
 	Right
 )
 
+type Color int
+
+const (
+	Red Color = iota
+	Brown
+	Blue
+)
+
+func colorToSDLColor(color Color) sdl.Color {
+	switch color {
+	case Red:
+		return sdl.Color{R: 255, G: 0, B: 0, A: 255}
+	case Brown:
+		return sdl.Color{R: 139, G: 69, B: 19, A: 255}
+	case Blue:
+		return sdl.Color{R: 0, G: 0, B: 255, A: 255}
+	default:
+		return sdl.Color{R: 255, G: 255, B: 255, A: 255}
+	}
+}
+
 type Alien struct {
-	Rect  *sdl.Rect
-	Color sdl.Color
+	Rect      *sdl.Rect
+	FillColor Color
 }
 
 type Laser struct {
@@ -67,12 +88,8 @@ func initGame() {
 func addRandomAlien() {
 	x := int32(rand.Intn(winWidth - 20))
 	y := int32(rand.Intn(winHeight - 20))
-	colors := []sdl.Color{
-		{R: 255, G: 0, B: 0, A: 255},   // Red
-		{R: 165, G: 42, B: 42, A: 255}, // Brown
-		{R: 0, G: 0, B: 255, A: 255},   // Blue
-	}
-	newAlien := Alien{Rect: &sdl.Rect{X: x, Y: y, W: 20, H: 20}, Color: colors[rand.Intn(len(colors))]}
+	color := Color(rand.Intn(3))
+	newAlien := Alien{Rect: &sdl.Rect{X: x, Y: y, W: 20, H: 20}, FillColor: color}
 	aliens = append(aliens, newAlien)
 }
 
@@ -86,20 +103,35 @@ func moveAliens() {
 		for i, alien := range aliens {
 			dx := int32(rand.Intn(5) - 2) // Random between -2 and 2
 			dy := int32(rand.Intn(5) - 2) // Random between -2 and 2
-			alien.Rect.X += dx
-			alien.Rect.Y += dy
-			// Make sure alien stays within window boundary
-			if alien.Rect.X < 0 {
-				alien.Rect.X = 0
-			}
-			if alien.Rect.Y < 0 {
-				alien.Rect.Y = 0
-			}
-			if alien.Rect.X > winWidth-20 {
-				alien.Rect.X = winWidth - 20
-			}
-			if alien.Rect.Y > winHeight-20 {
-				alien.Rect.Y = winHeight - 20
+			switch alien.FillColor {
+			case Red:
+				if alien.Rect.X < player.X {
+					alien.Rect.X += 1
+				} else if alien.Rect.X > player.X {
+					alien.Rect.X -= 1
+				}
+				if alien.Rect.Y < player.Y {
+					alien.Rect.Y += 1
+				} else if alien.Rect.Y > player.Y {
+					alien.Rect.Y -= 1
+				}
+			default:
+
+				alien.Rect.X += dx
+				alien.Rect.Y += dy
+				// Make sure alien stays within window boundary
+				if alien.Rect.X < 0 {
+					alien.Rect.X = 0
+				}
+				if alien.Rect.Y < 0 {
+					alien.Rect.Y = 0
+				}
+				if alien.Rect.X > winWidth-20 {
+					alien.Rect.X = winWidth - 20
+				}
+				if alien.Rect.Y > winHeight-20 {
+					alien.Rect.Y = winHeight - 20
+				}
 			}
 			aliens[i] = alien
 		}
@@ -207,7 +239,8 @@ func main() {
 
 		alienLock.Lock()
 		for _, alien := range aliens {
-			renderer.SetDrawColor(alien.Color.R, alien.Color.G, alien.Color.B, alien.Color.A)
+			sdlColor := colorToSDLColor(alien.FillColor)
+			renderer.SetDrawColor(sdlColor.R, sdlColor.G, sdlColor.B, sdlColor.A)
 			renderer.FillRect(alien.Rect)
 		}
 		alienLock.Unlock()
