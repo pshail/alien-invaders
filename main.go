@@ -219,6 +219,7 @@ func main() {
 		renderer.Present()
 		sdl.Delay(16)
 	}
-
+	//send kill signal to alien movement goroutine
+	ch <- true
 	fmt.Println("Game Over!")
 }
