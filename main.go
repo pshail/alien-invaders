@@ -28,11 +28,16 @@ type Laser struct {
 	Dir  Direction
 }
 
+type Alien struct {
+	Rect *sdl.Rect
+	Dir  Direction
+}
+
 var (
 	lastShot  time.Time
 	player    *sdl.Rect
 	playerDir Direction
-	aliens    []*sdl.Rect
+	aliens    []Alien
 	lasers    []Laser
 	running   bool
 	keys      = map[sdl.Keycode]bool{}
@@ -56,19 +61,53 @@ func initGame() {
 	rand.Seed(time.Now().UnixNano())
 	player = &sdl.Rect{X: 390, Y: 550, W: 20, H: 20}
 	playerDir = Up
-	aliens = append(aliens, &sdl.Rect{X: 100, Y: 100, W: 20, H: 20})
+	aliens = append(aliens, Alien{Rect: &sdl.Rect{X: 100, Y: 100, W: 20, H: 20}, Dir: Up})
 	running = true
 }
 
 func addRandomAlien() {
 	x := int32(rand.Intn(winWidth - 20))
 	y := int32(rand.Intn(winHeight - 20))
-	newAlien := &sdl.Rect{X: x, Y: y, W: 20, H: 20}
+	newAlien := Alien{Rect: &sdl.Rect{X: x, Y: y, W: 20, H: 20}, Dir: Up}
 	aliens = append(aliens, newAlien)
 }
 
 func checkCollision(a, b *sdl.Rect) bool {
 	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
+}
+
+func moveAliens(aliens []Alien, ch chan bool) {
+	for {
+		select {
+		case <-ch:
+			return
+		default:
+			for _, alien := range aliens {
+				// Randomly change direction
+				alien.Dir = Direction(rand.Intn(4))
+				stepSize := int32(rand.Intn(20))
+				switch alien.Dir {
+				case Up:
+					if alien.Rect.Y > 0 {
+						alien.Rect.Y -= stepSize
+					}
+				case Down:
+					if alien.Rect.Y < winHeight-20 {
+						alien.Rect.Y += stepSize
+					}
+				case Left:
+					if alien.Rect.X > 0 {
+						alien.Rect.X -= stepSize
+					}
+				case Right:
+					if alien.Rect.X < winWidth-20 {
+						alien.Rect.X += stepSize
+					}
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }
 
 func main() {
@@ -83,6 +122,12 @@ func main() {
 	defer renderer.Destroy()
 
 	initGame()
+
+	// Create a channel to stop the alien movementt goroutine when the game stops running
+	ch := make(chan bool)
+
+	// Start the alien movement goroutine
+	go moveAliens(aliens, ch)
 
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
@@ -143,7 +188,7 @@ func main() {
 
 			// Existing alien collision logic
 			for j, alien := range aliens {
-				if checkCollision(lasers[i].Rect, alien) {
+				if checkCollision(lasers[i].Rect, alien.Rect) {
 					aliens = append(aliens[:j], aliens[j+1:]...)
 					lasers = append(lasers[:i], lasers[i+1:]...)
 					addRandomAlien()
@@ -168,7 +213,7 @@ func main() {
 		// Draw aliens
 		renderer.SetDrawColor(255, 0, 0, 255)
 		for _, alien := range aliens {
-			renderer.FillRect(alien)
+			renderer.FillRect(alien.Rect)
 		}
 
 		renderer.Present()
