@@ -158,10 +158,9 @@ func addRandomAlien() {
 	aliens = append(aliens, newAlien)
 }
 
-func createAliens(ticker *time.Ticker) {
+func createAliens(ticker *time.Ticker, alienCount int) {
 	for range ticker.C {
-		// Generate 3 aliens at a time as an example
-		for i := 0; i < 3; i++ {
+		for i := 0; i < alienCount; i++ {
 			addRandomAlien()
 		}
 	}
@@ -232,9 +231,9 @@ func main() {
 
 	music.Play(-1) // loop indefinitely
 	initGame()
-	// Create aliens every 3 seconds
-	ticker := time.NewTicker(3 * time.Second)
-	go createAliens(ticker)
+	// Create 5 aliens every 5 seconds
+	ticker := time.NewTicker(5 * time.Second)
+	go createAliens(ticker, 5)
 	go moveAliens() // Start moving aliens in a separate goroutine
 
 	for running {
