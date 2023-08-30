@@ -79,7 +79,7 @@ func loadAndBlurTexture(renderer *sdl.Renderer, path string) (*sdl.Texture, erro
 func loadMedia(renderer *sdl.Renderer) (*sdl.Texture, *mix.Music, error) {
 	texture, err := loadAndBlurTexture(renderer, "level1.png")
 	if err != nil {
-		log.Fatal("Filed to load/blur image: %v", err)
+		log.Fatalf("Filed to load/blur image: %v", err)
 	}
 	if err := mix.Init(mix.INIT_MP3); err != nil {
 		log.Fatalf("Initializing SDL_mixer failed: %v", err)
